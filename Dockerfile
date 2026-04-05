@@ -4,7 +4,7 @@
 # Run:   docker run -d -p 8096:8096 -v jellyfin-config:/config -v jellyfin-cache:/cache -v /path/to/media:/media:ro jellyfin-loongarch64
 
 ARG BASE_IMAGE=aosc/aosc-os:container-20260312
-ARG WEB_CLASSIC_IMAGE=jellyfin/jellyfin:latest
+ARG WEB_CLASSIC_IMAGE=jellyfin/jellyfin:10.11.7
 ARG WEB_VUE_IMAGE=jellyfin/jellyfin-vue:unstable
 
 # ── Web UI source stages (static files, platform-independent) ──
@@ -80,6 +80,8 @@ LABEL org.opencontainers.image.title="Jellyfin" \
 RUN oma install -y icu openssl krb5 zlib sqlite ffmpeg fontconfig freetype curl \
     && oma clean
 
+WORKDIR /opt/jellyfin
+
 # Only copy the runtime, not the full SDK (~360MB vs ~1.5GB)
 COPY --link --from=build /opt/dotnet-runtime /opt/dotnet
 COPY --link --from=build /opt/jellyfin /opt/jellyfin
@@ -114,10 +116,10 @@ ENV JELLYFIN_WEB_DIR=/opt/jellyfin-web
 
 EXPOSE 8096 8920 1900/udp 7359/udp
 
-VOLUME ["/config", "/cache", "/media"]
+STOPSIGNAL SIGTERM
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -sf http://localhost:8096/health || exit 1
+    CMD ["curl", "-sf", "http://localhost:8096/health"]
 
 ENTRYPOINT ["/opt/dotnet/dotnet", "/opt/jellyfin/jellyfin.dll"]
 CMD ["--datadir", "/config/data", \

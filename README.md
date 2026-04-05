@@ -47,7 +47,7 @@ docker run ... jellyfin-loongarch64 \
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 8096 | TCP | HTTP web interface |
-| 8920 | TCP | HTTPS web interface |
+| 8920 | TCP | HTTPS (requires certificate setup in Jellyfin settings) |
 | 1900 | UDP | DLNA discovery |
 | 7359 | UDP | Client auto-discovery |
 
@@ -56,6 +56,7 @@ docker run ... jellyfin-loongarch64 \
 - **Base image**: AOSC OS `container-20260312` (provides glibc >= 2.40 needed by .NET on LoongArch)
 - **.NET SDK**: 9.0.104 from [loongson-community/dotnet-unofficial-build](https://github.com/loongson-community/dotnet-unofficial-build), verified with SHA-256 checksum
 - **Non-root**: Runs as a dedicated `jellyfin` user inside the container
+- **Volumes**: Not declared via `VOLUME` instruction — use `-v` flags at runtime to mount `/config`, `/cache`, and `/media`
 - **SQLite fix**: The `SQLitePCLRaw` NuGet package has no loongarch64 native library, so the system `libsqlite3.so` is symlinked as `libe_sqlite3.so`
 - **SkiaSharp fix**: Jellyfin 10.11.7 uses SkiaSharp 3.116.1 which predates loongarch64 support. The native `libSkiaSharp.so` is extracted from SkiaSharp 3.119.0 ([mono/SkiaSharp#3198](https://github.com/mono/SkiaSharp/pull/3198))
 - **FFmpeg**: Uses AOSC OS's packaged ffmpeg. For hardware-accelerated transcoding, consider building [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg)
@@ -65,6 +66,11 @@ docker run ... jellyfin-loongarch64 \
 | Arg | Default | Description |
 |-----|---------|-------------|
 | `BASE_IMAGE` | `aosc/aosc-os:container-20260312` | Base image |
-| `JELLYFIN_VERSION` | `10.11.7` | Jellyfin server version |
-| `SKIASHARP_VERSION` | `3.119.0` | SkiaSharp native assets version |
+| `JELLYFIN_VERSION` | `10.11.7` | Jellyfin server version (git tag) |
 | `WEB_UI` | `classic` | Web UI: `classic` or `vue` |
+| `WEB_CLASSIC_IMAGE` | `jellyfin/jellyfin:10.11.7` | Source image for classic web UI files |
+| `WEB_VUE_IMAGE` | `jellyfin/jellyfin-vue:unstable` | Source image for Vue web UI files |
+| `SKIASHARP_VERSION` | `3.119.0` | SkiaSharp native assets version |
+| `SKIASHARP_SHA256` | `cac1d7...` | SHA-256 checksum for SkiaSharp nupkg |
+| `DOTNET_SDK_URL` | *(community release URL)* | .NET SDK tarball URL |
+| `DOTNET_SDK_SHA256` | `3c29cf...` | SHA-256 checksum for .NET SDK tarball |
