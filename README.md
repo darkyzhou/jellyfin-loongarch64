@@ -1,10 +1,10 @@
-# Jellyfin 10.11.7 for LoongArch64
+# Jellyfin for LoongArch64
 
 [Jellyfin](https://jellyfin.org/) media server for LoongArch64 (Loongson 3A5000/3A6000 etc.). Requires Docker on a LoongArch64 Linux host (any distro).
 
 ## Quick Start
 
-A prebuilt image is available on [Docker Hub](https://hub.docker.com/r/darkyzhou/jellyfin-loongarch64) — just pull and run:
+A prebuilt image is available on [Docker Hub](https://hub.docker.com/r/darkyzhou/jellyfin-loongarch64), just pull and run:
 
 ```bash
 docker run -d \
@@ -42,11 +42,6 @@ docker stop jellyfin && docker rm jellyfin
 ```
 
 Your config and library data are preserved in the volumes.
-
-## Known Limitations
-
-- **No hardware transcoding.** All transcoding is CPU-based. Loongson's integrated GPU has no video encode/decode acceleration usable by Jellyfin. If you have a discrete AMD GPU (RX 6600+), VAAPI decode may work but is untested.
-- **CPU transcoding performance.** The 3A6000 can handle 1-2 concurrent 1080p software transcodes with `libx264`. 4K content is best served via direct play (no transcoding).
 
 ## Web UI Options
 
@@ -92,6 +87,6 @@ docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
 - **Base image**: AOSC OS (provides glibc >= 2.40 needed by .NET on LoongArch)
 - **.NET SDK**: 9.0.104 from [loongson-community/dotnet-unofficial-build](https://github.com/loongson-community/dotnet-unofficial-build), verified with SHA-256 checksum
 - **FFmpeg**: Built from [jellyfin/jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) 7.1.3 with 94 Jellyfin patches (HDR tone-mapping, VAAPI/Vulkan/OpenCL filters, subtitle overlay, etc.)
-- **SQLite fix**: `SQLitePCLRaw` has no loongarch64 native library — system `libsqlite3.so` is symlinked as `libe_sqlite3.so`
+- **SQLite fix**: `SQLitePCLRaw` has no loongarch64 native library, `libsqlite3.so` from AOSC OS is symlinked as `libe_sqlite3.so`
 - **SkiaSharp fix**: Jellyfin 10.11.7 ships SkiaSharp 3.116.1 (no loongarch64); `libSkiaSharp.so` is extracted from 3.119.0 ([mono/SkiaSharp#3198](https://github.com/mono/SkiaSharp/pull/3198))
 - **Non-root**: Runs as a dedicated `jellyfin` user inside the container
