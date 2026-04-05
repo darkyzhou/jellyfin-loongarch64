@@ -6,10 +6,10 @@ Dockerfile to build and run [Jellyfin](https://jellyfin.org/) media server on Lo
 
 ```bash
 # With classic web UI (default, official jellyfin-web)
-docker build -t jellyfin-loongarch64 .
+docker build -t darkyzhou/jellyfin-loongarch64 .
 
 # With Vue web UI (experimental, jellyfin-vue)
-docker build --build-arg WEB_UI=vue -t jellyfin-loongarch64-vue .
+docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
 ```
 
 ## Run
@@ -21,7 +21,7 @@ docker run -d \
   -v jellyfin-config:/config \
   -v jellyfin-cache:/cache \
   -v /path/to/media:/media:ro \
-  jellyfin-loongarch64
+  darkyzhou/jellyfin-loongarch64
 ```
 
 Then open `http://<your-ip>:8096/web/` to complete the initial setup wizard.
@@ -40,7 +40,7 @@ Both frontends are static files extracted from official amd64 Docker images (pla
 You can also switch web UI at runtime without rebuilding:
 
 ```bash
-docker run ... jellyfin-loongarch64 \
+docker run ... darkyzhou/jellyfin-loongarch64 \
   --webdir /opt/jellyfin-web-vue
 ```
 

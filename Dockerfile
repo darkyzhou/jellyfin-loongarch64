@@ -1,7 +1,7 @@
 # Jellyfin 10.11.7 for LoongArch64
-# Build: docker build -t jellyfin-loongarch64 .
-# Build with Vue frontend: docker build --build-arg WEB_UI=vue -t jellyfin-loongarch64 .
-# Run:   docker run -d -p 8096:8096 -v jellyfin-config:/config -v jellyfin-cache:/cache -v /path/to/media:/media:ro jellyfin-loongarch64
+# Build: docker build -t darkyzhou/jellyfin-loongarch64 .
+# Build with Vue frontend: docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64 .
+# Run:   docker run -d -p 8096:8096 -v jellyfin-config:/config -v jellyfin-cache:/cache -v /path/to/media:/media:ro darkyzhou/jellyfin-loongarch64
 
 ARG BASE_IMAGE=aosc/aosc-os:container-20260312
 ARG WEB_CLASSIC_IMAGE=jellyfin/jellyfin:10.11.7
