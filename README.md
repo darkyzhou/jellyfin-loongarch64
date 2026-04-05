@@ -61,7 +61,7 @@ docker run ... jellyfin-loongarch64 \
 - **Volumes**: Not declared via `VOLUME` instruction — use `-v` flags at runtime to mount `/config`, `/cache`, and `/media`
 - **SQLite fix**: The `SQLitePCLRaw` NuGet package has no loongarch64 native library, so the system `libsqlite3.so` is symlinked as `libe_sqlite3.so`
 - **SkiaSharp fix**: Jellyfin 10.11.7 uses SkiaSharp 3.116.1 which predates loongarch64 support. The native `libSkiaSharp.so` is extracted from SkiaSharp 3.119.0 ([mono/SkiaSharp#3198](https://github.com/mono/SkiaSharp/pull/3198))
-- **FFmpeg**: Uses AOSC OS's packaged ffmpeg. For hardware-accelerated transcoding, consider building [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg)
+- **FFmpeg**: Built from [jellyfin/jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) 7.1.3 with 94 Jellyfin patches (HDR tone-mapping, VAAPI/Vulkan/OpenCL filters, subtitle overlay, etc.). Includes chromaprint, fdk-aac, libplacebo, Vulkan, and VAAPI support
 
 ## Build Args
 
