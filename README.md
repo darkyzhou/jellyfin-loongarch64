@@ -74,5 +74,5 @@ docker run ... jellyfin-loongarch64 \
 | `WEB_VUE_IMAGE` | `jellyfin/jellyfin-vue:unstable` | Source image for Vue web UI files |
 | `SKIASHARP_VERSION` | `3.119.0` | SkiaSharp native assets version |
 | `SKIASHARP_SHA256` | `cac1d7...` | SHA-256 checksum for SkiaSharp nupkg |
-| `DOTNET_SDK_URL` | *(community release URL)* | .NET SDK tarball URL |
+| `DOTNET_SDK_URL` | [loongson-community release](https://github.com/loongson-community/dotnet-unofficial-build/releases)* | .NET SDK tarball URL |
 | `DOTNET_SDK_SHA256` | `3c29cf...` | SHA-256 checksum for .NET SDK tarball |
