@@ -1,9 +1,15 @@
-
 # Jellyfin 10.11.7 for LoongArch64
 # Build: docker build -t jellyfin-loongarch64 .
+# Build with Vue frontend: docker build --build-arg WEB_UI=vue -t jellyfin-loongarch64 .
 # Run:   docker run -d -p 8096:8096 -v jellyfin-config:/config -v jellyfin-cache:/cache -v /path/to/media:/media:ro jellyfin-loongarch64
 
 ARG BASE_IMAGE=aosc/aosc-os:container-20260312
+ARG WEB_CLASSIC_IMAGE=jellyfin/jellyfin:latest
+ARG WEB_VUE_IMAGE=jellyfin/jellyfin-vue:unstable
+
+# ── Web UI source stages (static files, platform-independent) ──
+FROM --platform=linux/amd64 ${WEB_CLASSIC_IMAGE} AS web-classic
+FROM --platform=linux/amd64 ${WEB_VUE_IMAGE} AS web-vue
 
 # ── Build stage ──
 FROM ${BASE_IMAGE} AS build
@@ -62,9 +68,12 @@ RUN mkdir -p /opt/dotnet-runtime \
 # ── Runtime stage ──
 FROM ${BASE_IMAGE}
 
+# WEB_UI: "classic" (default, official jellyfin-web) or "vue" (jellyfin-vue, experimental)
+ARG WEB_UI=classic
+
 LABEL org.opencontainers.image.title="Jellyfin" \
       org.opencontainers.image.version="10.11.7" \
-      org.opencontainers.image.description="Jellyfin Media Server for LoongArch64" \
+      org.opencontainers.image.description="Jellyfin Media Server for LoongArch64 (web UI: ${WEB_UI})" \
       org.opencontainers.image.url="https://jellyfin.org/" \
       org.opencontainers.image.source="https://github.com/jellyfin/jellyfin"
 
@@ -74,6 +83,13 @@ RUN oma install -y icu openssl krb5 zlib sqlite ffmpeg fontconfig freetype curl 
 # Only copy the runtime, not the full SDK (~360MB vs ~1.5GB)
 COPY --link --from=build /opt/dotnet-runtime /opt/dotnet
 COPY --link --from=build /opt/jellyfin /opt/jellyfin
+
+# Copy both web UIs (static files from amd64 images — platform-independent)
+COPY --link --from=web-classic /jellyfin/jellyfin-web /opt/jellyfin-web-classic
+COPY --link --from=web-vue /usr/share/nginx/html /opt/jellyfin-web-vue
+
+# Activate the chosen web UI via symlink
+RUN ln -sf /opt/jellyfin-web-${WEB_UI} /opt/jellyfin-web
 
 # Re-create sqlite symlink: the build-stage symlink points at /usr/lib/libsqlite3.so
 # which only exists in this runtime image, and COPY may not preserve symlinks correctly.
@@ -94,6 +110,7 @@ ENV JELLYFIN_DATA_DIR=/config/data
 ENV JELLYFIN_CONFIG_DIR=/config
 ENV JELLYFIN_CACHE_DIR=/cache
 ENV JELLYFIN_LOG_DIR=/config/log
+ENV JELLYFIN_WEB_DIR=/opt/jellyfin-web
 
 EXPOSE 8096 8920 1900/udp 7359/udp
 
@@ -108,4 +125,4 @@ CMD ["--datadir", "/config/data", \
      "--cachedir", "/cache", \
      "--logdir", "/config/log", \
      "--ffmpeg", "/usr/bin/ffmpeg", \
-     "--nowebclient"]
+     "--webdir", "/opt/jellyfin-web"]
