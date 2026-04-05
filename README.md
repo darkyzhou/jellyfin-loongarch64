@@ -1,6 +1,6 @@
 # Jellyfin 10.11.7 for LoongArch64
 
-Dockerfile to build and run [Jellyfin](https://jellyfin.org/) media server on LoongArch64 (Loongson 3A5000/3A6000 etc.).
+[Jellyfin](https://jellyfin.org/) media server for LoongArch64 (Loongson 3A5000/3A6000 etc.). Requires Docker on a LoongArch64 Linux host (any distro).
 
 ## Quick Start
 
@@ -16,21 +16,37 @@ docker run -d \
   darkyzhou/jellyfin-loongarch64
 ```
 
-Then open `http://<your-ip>:8096/web/` to complete the initial setup wizard.
+Then open `http://<your-ip>:8096/web/` to complete the initial setup wizard. Add `/media` as a library path in the wizard.
 
-> **Important**: Remember to mount your media directory with `-v /path/to/media:/media:ro`. You can then add `/media` as a library path in the Jellyfin setup wizard. Multiple directories can be mounted, e.g. `-v /movies:/media/movies:ro -v /music:/media/music:ro`.
+> **Important**: Replace `/path/to/media` with your actual media directory. Multiple directories can be mounted, e.g. `-v /movies:/media/movies:ro -v /music:/media/music:ro`.
 
-## Build from Source
+Your config and library data are stored in Docker volumes (`jellyfin-config`, `jellyfin-cache`) and will survive container restarts. Use `docker volume inspect jellyfin-config` to find the path on disk.
 
-If you prefer to build the image yourself:
+## Ports
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 8096 | TCP | HTTP web interface (required) |
+| 8920 | TCP | HTTPS (requires certificate setup in Jellyfin settings) |
+| 1900 | UDP | DLNA discovery (optional) |
+| 7359 | UDP | Client auto-discovery (optional) |
+
+To expose all ports: `-p 8096:8096 -p 8920:8920 -p 1900:1900/udp -p 7359:7359/udp`
+
+## Updating
 
 ```bash
-# With classic web UI (default, official jellyfin-web)
-docker build -t darkyzhou/jellyfin-loongarch64 .
-
-# With Vue web UI (experimental, jellyfin-vue)
-docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
+docker pull darkyzhou/jellyfin-loongarch64
+docker stop jellyfin && docker rm jellyfin
+# Re-run the docker run command from Quick Start
 ```
+
+Your config and library data are preserved in the volumes.
+
+## Known Limitations
+
+- **No hardware transcoding.** All transcoding is CPU-based. Loongson's integrated GPU has no video encode/decode acceleration usable by Jellyfin. If you have a discrete AMD GPU (RX 6600+), VAAPI decode may work but is untested.
+- **CPU transcoding performance.** The 3A6000 can handle 1-2 concurrent 1080p software transcodes with `libx264`. 4K content is best served via direct play (no transcoding).
 
 ## Web UI Options
 
@@ -39,35 +55,26 @@ docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
 | `classic` (default) | [jellyfin-web](https://github.com/jellyfin/jellyfin-web) | Official, production-ready |
 | `vue` | [jellyfin-vue](https://github.com/jellyfin/jellyfin-vue) | Community rewrite, experimental |
 
-Both frontends are static files extracted from official amd64 Docker images (platform-independent), so no Node.js build is needed on loongarch64.
-
-You can also switch web UI at runtime without rebuilding:
+Switch at runtime without rebuilding:
 
 ```bash
 docker run ... darkyzhou/jellyfin-loongarch64 \
   --webdir /opt/jellyfin-web-vue
 ```
 
-## Ports
+---
 
-| Port | Protocol | Purpose |
-|------|----------|---------|
-| 8096 | TCP | HTTP web interface |
-| 8920 | TCP | HTTPS (requires certificate setup in Jellyfin settings) |
-| 1900 | UDP | DLNA discovery |
-| 7359 | UDP | Client auto-discovery |
+## Build from Source
 
-## Notes
+```bash
+# With classic web UI (default)
+docker build -t darkyzhou/jellyfin-loongarch64 .
 
-- **Base image**: AOSC OS `container-20260312` (provides glibc >= 2.40 needed by .NET on LoongArch)
-- **.NET SDK**: 9.0.104 from [loongson-community/dotnet-unofficial-build](https://github.com/loongson-community/dotnet-unofficial-build), verified with SHA-256 checksum
-- **Non-root**: Runs as a dedicated `jellyfin` user inside the container
-- **Volumes**: Not declared via `VOLUME` instruction — use `-v` flags at runtime to mount `/config`, `/cache`, and `/media`
-- **SQLite fix**: The `SQLitePCLRaw` NuGet package has no loongarch64 native library, so the system `libsqlite3.so` is symlinked as `libe_sqlite3.so`
-- **SkiaSharp fix**: Jellyfin 10.11.7 uses SkiaSharp 3.116.1 which predates loongarch64 support. The native `libSkiaSharp.so` is extracted from SkiaSharp 3.119.0 ([mono/SkiaSharp#3198](https://github.com/mono/SkiaSharp/pull/3198))
-- **FFmpeg**: Built from [jellyfin/jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) 7.1.3 with 94 Jellyfin patches (HDR tone-mapping, VAAPI/Vulkan/OpenCL filters, subtitle overlay, etc.). Includes chromaprint, fdk-aac, libplacebo, Vulkan, and VAAPI support
+# With Vue web UI
+docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
+```
 
-## Build Args
+### Build Args
 
 | Arg | Default | Description |
 |-----|---------|-------------|
@@ -78,6 +85,13 @@ docker run ... darkyzhou/jellyfin-loongarch64 \
 | `WEB_CLASSIC_IMAGE` | `jellyfin/jellyfin:10.11.7` | Source image for classic web UI files |
 | `WEB_VUE_IMAGE` | `jellyfin/jellyfin-vue:unstable` | Source image for Vue web UI files |
 | `SKIASHARP_VERSION` | `3.119.0` | SkiaSharp native assets version |
-| `SKIASHARP_SHA256` | `cac1d7...` | SHA-256 checksum for SkiaSharp nupkg |
 | `DOTNET_SDK_URL` | [loongson-community release](https://github.com/loongson-community/dotnet-unofficial-build/releases) | .NET SDK tarball URL |
-| `DOTNET_SDK_SHA256` | `3c29cf...` | SHA-256 checksum for .NET SDK tarball |
+
+### Technical Notes
+
+- **Base image**: AOSC OS (provides glibc >= 2.40 needed by .NET on LoongArch)
+- **.NET SDK**: 9.0.104 from [loongson-community/dotnet-unofficial-build](https://github.com/loongson-community/dotnet-unofficial-build), verified with SHA-256 checksum
+- **FFmpeg**: Built from [jellyfin/jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) 7.1.3 with 94 Jellyfin patches (HDR tone-mapping, VAAPI/Vulkan/OpenCL filters, subtitle overlay, etc.)
+- **SQLite fix**: `SQLitePCLRaw` has no loongarch64 native library — system `libsqlite3.so` is symlinked as `libe_sqlite3.so`
+- **SkiaSharp fix**: Jellyfin 10.11.7 ships SkiaSharp 3.116.1 (no loongarch64); `libSkiaSharp.so` is extracted from 3.119.0 ([mono/SkiaSharp#3198](https://github.com/mono/SkiaSharp/pull/3198))
+- **Non-root**: Runs as a dedicated `jellyfin` user inside the container
