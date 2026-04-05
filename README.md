@@ -2,17 +2,9 @@
 
 Dockerfile to build and run [Jellyfin](https://jellyfin.org/) media server on LoongArch64 (Loongson 3A5000/3A6000 etc.).
 
-## Build
+## Quick Start
 
-```bash
-# With classic web UI (default, official jellyfin-web)
-docker build -t darkyzhou/jellyfin-loongarch64 .
-
-# With Vue web UI (experimental, jellyfin-vue)
-docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
-```
-
-## Run
+A prebuilt image is available on [Docker Hub](https://hub.docker.com/r/darkyzhou/jellyfin-loongarch64) — just pull and run:
 
 ```bash
 docker run -d \
@@ -27,6 +19,18 @@ docker run -d \
 Then open `http://<your-ip>:8096/web/` to complete the initial setup wizard.
 
 > **Important**: Remember to mount your media directory with `-v /path/to/media:/media:ro`. You can then add `/media` as a library path in the Jellyfin setup wizard. Multiple directories can be mounted, e.g. `-v /movies:/media/movies:ro -v /music:/media/music:ro`.
+
+## Build from Source
+
+If you prefer to build the image yourself:
+
+```bash
+# With classic web UI (default, official jellyfin-web)
+docker build -t darkyzhou/jellyfin-loongarch64 .
+
+# With Vue web UI (experimental, jellyfin-vue)
+docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
+```
 
 ## Web UI Options
 
@@ -75,5 +79,5 @@ docker run ... darkyzhou/jellyfin-loongarch64 \
 | `WEB_VUE_IMAGE` | `jellyfin/jellyfin-vue:unstable` | Source image for Vue web UI files |
 | `SKIASHARP_VERSION` | `3.119.0` | SkiaSharp native assets version |
 | `SKIASHARP_SHA256` | `cac1d7...` | SHA-256 checksum for SkiaSharp nupkg |
-| `DOTNET_SDK_URL` | [loongson-community release](https://github.com/loongson-community/dotnet-unofficial-build/releases)* | .NET SDK tarball URL |
+| `DOTNET_SDK_URL` | [loongson-community release](https://github.com/loongson-community/dotnet-unofficial-build/releases) | .NET SDK tarball URL |
 | `DOTNET_SDK_SHA256` | `3c29cf...` | SHA-256 checksum for .NET SDK tarball |
