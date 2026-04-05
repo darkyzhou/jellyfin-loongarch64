@@ -1,6 +1,6 @@
 # Jellyfin for LoongArch64
 
-[Jellyfin](https://jellyfin.org/) media server for LoongArch64 (Loongson 3A5000/3A6000 etc.). Requires Docker on a LoongArch64 Linux host (any distro).
+[Jellyfin](https://jellyfin.org/) media server for LoongArch64 (Loongson 3A5000/3A6000 etc.). Requires Docker on a New-World LoongArch64 Linux host.
 
 ## Quick Start
 

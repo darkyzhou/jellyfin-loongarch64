@@ -1,17 +1,10 @@
-# Jellyfin 10.11.7 for LoongArch64
-# Build: docker build -t darkyzhou/jellyfin-loongarch64 .
-# Build with Vue frontend: docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64 .
-# Run:   docker run -d -p 8096:8096 -v jellyfin-config:/config -v jellyfin-cache:/cache -v /path/to/media:/media:ro darkyzhou/jellyfin-loongarch64
-
 ARG BASE_IMAGE=aosc/aosc-os:container-20260312
 ARG WEB_CLASSIC_IMAGE=jellyfin/jellyfin:10.11.7
 ARG WEB_VUE_IMAGE=jellyfin/jellyfin-vue:unstable
 
-# ── Web UI source stages (static files, platform-independent) ──
 FROM --platform=linux/amd64 ${WEB_CLASSIC_IMAGE} AS web-classic
 FROM --platform=linux/amd64 ${WEB_VUE_IMAGE} AS web-vue
 
-# ── Build stage ──
 FROM ${BASE_IMAGE} AS build
 
 ARG JELLYFIN_VERSION=10.11.7
@@ -22,7 +15,6 @@ ARG SKIASHARP_VERSION=3.119.0
 ARG SKIASHARP_SHA256="cac1d71897ae8b8ba38ba6d2048ce9a8c45f2895ea8ffd3c65dd0c2017901f7b"
 
 # Install build dependencies for Jellyfin server and jellyfin-ffmpeg.
-# Grouped: core tools | .NET runtime deps | ffmpeg libs (shared with runtime) | ffmpeg build-only tools
 RUN oma install -y \
       curl git tar unzip make gcc pkg-config nasm yasm \
       zlib icu openssl krb5 sqlite \
@@ -32,10 +24,6 @@ RUN oma install -y \
       dav1d svt-av1 libwebp libvpx x264 x265 zvbi zimg \
       libfdk-aac libplacebo vulkan shaderc
 
-# ── Build jellyfin-ffmpeg ──
-# Uses the jellyfin-ffmpeg repo (ffmpeg 7.1.3 + 94 Jellyfin patches) with the
-# same configure flags as debian/rules, minus platform-specific options (NVIDIA,
-# Intel QSV, AMD AMF, Rockchip) that have no loongarch64 userspace libraries.
 RUN git clone --depth 1 --branch "${JELLYFIN_FFMPEG_VERSION}" \
       https://github.com/jellyfin/jellyfin-ffmpeg.git /src/jellyfin-ffmpeg
 
@@ -92,16 +80,12 @@ RUN ./configure \
 RUN make -j$(nproc)
 RUN make install DESTDIR=/tmp/ffmpeg-install
 
-# Strip binaries and shared libs, and remove dev files not needed at runtime
 RUN find /tmp/ffmpeg-install -type f \( -name '*.so*' -o -name 'ffmpeg' -o -name 'ffprobe' \) \
       -exec strip --strip-unneeded {} + \
     && rm -rf /tmp/ffmpeg-install/opt/jellyfin-ffmpeg/include \
               /tmp/ffmpeg-install/opt/jellyfin-ffmpeg/lib/pkgconfig \
               /tmp/ffmpeg-install/opt/jellyfin-ffmpeg/share
 
-# ── Build Jellyfin server ──
-
-# Download, verify, and install .NET SDK for loongarch64
 RUN mkdir -p /opt/dotnet \
     && curl -fSL -o /tmp/dotnet-sdk.tar.gz "${DOTNET_SDK_URL}" \
     && echo "${DOTNET_SDK_SHA256}  /tmp/dotnet-sdk.tar.gz" | sha256sum -c - \
@@ -142,7 +126,6 @@ RUN mkdir -p /opt/dotnet-runtime \
     && cp -a /opt/dotnet/LICENSE.txt /opt/dotnet-runtime/ \
     && cp -a /opt/dotnet/ThirdPartyNotices.txt /opt/dotnet-runtime/
 
-# ── Runtime stage ──
 FROM ${BASE_IMAGE}
 
 # WEB_UI: "classic" (default, official jellyfin-web) or "vue" (jellyfin-vue, experimental)
@@ -152,10 +135,8 @@ LABEL org.opencontainers.image.title="Jellyfin" \
       org.opencontainers.image.version="10.11.7" \
       org.opencontainers.image.description="Jellyfin Media Server for LoongArch64 (web UI: ${WEB_UI})" \
       org.opencontainers.image.url="https://jellyfin.org/" \
-      org.opencontainers.image.source="https://github.com/jellyfin/jellyfin"
+      org.opencontainers.image.source="https://github.com/darkyzhou/jellyfin-loongarch64"
 
-# Runtime dependencies: .NET runtime libs + all shared libs that jellyfin-ffmpeg links against.
-# AOSC's ffmpeg package is NOT installed — we use our own jellyfin-ffmpeg build.
 RUN oma install -y \
       icu openssl krb5 zlib sqlite fontconfig freetype curl \
       gmp gnutls chromaprint libcl libdrm libxml2 libva \
@@ -167,31 +148,20 @@ RUN oma install -y \
 
 WORKDIR /opt/jellyfin
 
-# .NET runtime
 COPY --link --from=build /opt/dotnet-runtime /opt/dotnet
-
-# Jellyfin server
 COPY --link --from=build /opt/jellyfin /opt/jellyfin
-
-# jellyfin-ffmpeg (bin + shared libs only, dev files stripped in build stage)
 COPY --link --from=build /tmp/ffmpeg-install/opt/jellyfin-ffmpeg /opt/jellyfin-ffmpeg
-
-# Web UIs (static files from amd64 images — platform-independent)
 COPY --link --from=web-classic /jellyfin/jellyfin-web /opt/jellyfin-web-classic
 COPY --link --from=web-vue /usr/share/nginx/html /opt/jellyfin-web-vue
 
-# Activate the chosen web UI via symlink
 RUN ln -sf /opt/jellyfin-web-${WEB_UI} /opt/jellyfin-web
 
-# Re-create sqlite symlink: the build-stage symlink points at /usr/lib/libsqlite3.so
-# which only exists in this runtime image, and COPY may not preserve symlinks correctly.
 RUN mkdir -p /opt/jellyfin/runtimes/linux-loongarch64/native \
     && ln -sf /usr/lib/libsqlite3.so /opt/jellyfin/runtimes/linux-loongarch64/native/libe_sqlite3.so
 
 # Verify no shared libraries are missing at runtime
 RUN ldd /opt/jellyfin-ffmpeg/bin/ffmpeg | grep "not found" && exit 1 || true
 
-# Run as non-root user
 RUN useradd -r -s /bin/false jellyfin \
     && mkdir -p /config /cache \
     && chown jellyfin:jellyfin /config /cache
