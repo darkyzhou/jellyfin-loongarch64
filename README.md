@@ -69,6 +69,7 @@ docker run ... jellyfin-loongarch64 \
 |-----|---------|-------------|
 | `BASE_IMAGE` | `aosc/aosc-os:container-20260312` | Base image |
 | `JELLYFIN_VERSION` | `10.11.7` | Jellyfin server version (git tag) |
+| `JELLYFIN_FFMPEG_VERSION` | `v7.1.3-4` | jellyfin-ffmpeg version (git tag) |
 | `WEB_UI` | `classic` | Web UI: `classic` or `vue` |
 | `WEB_CLASSIC_IMAGE` | `jellyfin/jellyfin:10.11.7` | Source image for classic web UI files |
 | `WEB_VUE_IMAGE` | `jellyfin/jellyfin-vue:unstable` | Source image for Vue web UI files |

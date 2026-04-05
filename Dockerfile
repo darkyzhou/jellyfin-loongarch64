@@ -15,6 +15,7 @@ FROM --platform=linux/amd64 ${WEB_VUE_IMAGE} AS web-vue
 FROM ${BASE_IMAGE} AS build
 
 ARG JELLYFIN_VERSION=10.11.7
+ARG JELLYFIN_FFMPEG_VERSION=v7.1.3-4
 ARG DOTNET_SDK_URL="https://github.com/loongson-community/dotnet-unofficial-build/releases/download/v9.0.201%2Bloong.20250313.build.20250313/dotnet-sdk-9.0.104-linux-loongarch64.tar.gz"
 ARG DOTNET_SDK_SHA256="3c29cf43ecb99731450ccbd020a5734545cf707e603c4bcef8586263dd6d0238"
 ARG SKIASHARP_VERSION=3.119.0
@@ -26,7 +27,7 @@ RUN oma install -y \
       curl git tar unzip make gcc pkg-config nasm yasm \
       zlib icu openssl krb5 sqlite \
       gmp gnutls chromaprint opencl-registry-api libcl libdrm libxml2 \
-      libass freetype fribidi fontconfig harfbuzz \
+      libass freetype fribidi fontconfig harfbuzz libva \
       libbluray lame opus libtheora libvorbis openmpt \
       dav1d svt-av1 libwebp libvpx x264 x265 zvbi zimg \
       libfdk-aac libplacebo vulkan shaderc
@@ -35,7 +36,8 @@ RUN oma install -y \
 # Uses the jellyfin-ffmpeg repo (ffmpeg 7.1.3 + 94 Jellyfin patches) with the
 # same configure flags as debian/rules, minus platform-specific options (NVIDIA,
 # Intel QSV, AMD AMF, Rockchip) that have no loongarch64 userspace libraries.
-RUN git clone --depth 1 https://github.com/jellyfin/jellyfin-ffmpeg.git /src/jellyfin-ffmpeg
+RUN git clone --depth 1 --branch "${JELLYFIN_FFMPEG_VERSION}" \
+      https://github.com/jellyfin/jellyfin-ffmpeg.git /src/jellyfin-ffmpeg
 
 WORKDIR /src/jellyfin-ffmpeg
 RUN ln -s debian/patches patches \
@@ -45,6 +47,7 @@ RUN ./configure \
       --prefix=/opt/jellyfin-ffmpeg \
       --target-os=linux \
       --extra-version=Jellyfin \
+      --extra-ldflags="-Wl,-rpath,/opt/jellyfin-ffmpeg/lib" \
       --disable-doc \
       --disable-ffplay \
       --disable-static \
@@ -88,6 +91,13 @@ RUN ./configure \
 
 RUN make -j$(nproc)
 RUN make install DESTDIR=/tmp/ffmpeg-install
+
+# Strip binaries and shared libs, and remove dev files not needed at runtime
+RUN find /tmp/ffmpeg-install -type f \( -name '*.so*' -o -name 'ffmpeg' -o -name 'ffprobe' \) \
+      -exec strip --strip-unneeded {} + \
+    && rm -rf /tmp/ffmpeg-install/opt/jellyfin-ffmpeg/include \
+              /tmp/ffmpeg-install/opt/jellyfin-ffmpeg/lib/pkgconfig \
+              /tmp/ffmpeg-install/opt/jellyfin-ffmpeg/share
 
 # ── Build Jellyfin server ──
 
@@ -148,7 +158,7 @@ LABEL org.opencontainers.image.title="Jellyfin" \
 # AOSC's ffmpeg package is NOT installed — we use our own jellyfin-ffmpeg build.
 RUN oma install -y \
       icu openssl krb5 zlib sqlite fontconfig freetype curl \
-      gmp gnutls chromaprint libcl libdrm libxml2 \
+      gmp gnutls chromaprint libcl libdrm libxml2 libva \
       libass fribidi harfbuzz \
       libbluray lame opus libtheora libvorbis openmpt \
       dav1d svt-av1 libwebp libvpx x264 x265 zvbi zimg \
@@ -163,7 +173,7 @@ COPY --link --from=build /opt/dotnet-runtime /opt/dotnet
 # Jellyfin server
 COPY --link --from=build /opt/jellyfin /opt/jellyfin
 
-# jellyfin-ffmpeg (bin + shared libs)
+# jellyfin-ffmpeg (bin + shared libs only, dev files stripped in build stage)
 COPY --link --from=build /tmp/ffmpeg-install/opt/jellyfin-ffmpeg /opt/jellyfin-ffmpeg
 
 # Web UIs (static files from amd64 images — platform-independent)
@@ -178,6 +188,9 @@ RUN ln -sf /opt/jellyfin-web-${WEB_UI} /opt/jellyfin-web
 RUN mkdir -p /opt/jellyfin/runtimes/linux-loongarch64/native \
     && ln -sf /usr/lib/libsqlite3.so /opt/jellyfin/runtimes/linux-loongarch64/native/libe_sqlite3.so
 
+# Verify no shared libraries are missing at runtime
+RUN ldd /opt/jellyfin-ffmpeg/bin/ffmpeg | grep "not found" && exit 1 || true
+
 # Run as non-root user
 RUN useradd -r -s /bin/false jellyfin \
     && mkdir -p /config /cache \
@@ -187,8 +200,6 @@ USER jellyfin
 
 ENV DOTNET_ROOT=/opt/dotnet
 ENV PATH="${DOTNET_ROOT}:${PATH}"
-# jellyfin-ffmpeg's own libav* shared libs live here
-ENV LD_LIBRARY_PATH=/opt/jellyfin-ffmpeg/lib
 
 ENV JELLYFIN_DATA_DIR=/config/data
 ENV JELLYFIN_CONFIG_DIR=/config
@@ -202,7 +213,7 @@ EXPOSE 8096 8920 1900/udp 7359/udp
 STOPSIGNAL SIGTERM
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD ["curl", "-sf", "http://localhost:8096/health"]
+    CMD curl -sf http://localhost:8096/health || exit 1
 
 ENTRYPOINT ["/opt/dotnet/dotnet", "/opt/jellyfin/jellyfin.dll"]
 CMD ["--datadir", "/config/data", \
