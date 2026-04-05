@@ -24,7 +24,9 @@ docker run -d \
   jellyfin-loongarch64
 ```
 
-Then open `http://<your-ip>:8096/web/` to access the web UI.
+Then open `http://<your-ip>:8096/web/` to complete the initial setup wizard.
+
+> **Important**: Remember to mount your media directory with `-v /path/to/media:/media:ro`. You can then add `/media` as a library path in the Jellyfin setup wizard. Multiple directories can be mounted, e.g. `-v /movies:/media/movies:ro -v /music:/media/music:ro`.
 
 ## Web UI Options
 
