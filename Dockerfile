@@ -1,16 +1,26 @@
-# Jellyfin 10.11.7 for LoongArch64
-# Build on a loongarch64 machine with: docker build -t jellyfin-loongarch64 .
-# Run with: docker run -d -p 8096:8096 -v jellyfin-config:/config -v jellyfin-cache:/cache -v /path/to/media:/media jellyfin-loongarch64
 
-FROM aosc/aosc-os AS build
+# Jellyfin 10.11.7 for LoongArch64
+# Build: docker build -t jellyfin-loongarch64 .
+# Run:   docker run -d -p 8096:8096 -v jellyfin-config:/config -v jellyfin-cache:/cache -v /path/to/media:/media:ro jellyfin-loongarch64
+
+ARG BASE_IMAGE=aosc/aosc-os:container-20260312
+
+# ── Build stage ──
+FROM ${BASE_IMAGE} AS build
+
+ARG JELLYFIN_VERSION=10.11.7
+ARG DOTNET_SDK_URL="https://github.com/loongson-community/dotnet-unofficial-build/releases/download/v9.0.201%2Bloong.20250313.build.20250313/dotnet-sdk-9.0.104-linux-loongarch64.tar.gz"
+ARG DOTNET_SDK_SHA256="3c29cf43ecb99731450ccbd020a5734545cf707e603c4bcef8586263dd6d0238"
+ARG SKIASHARP_VERSION=3.119.0
+ARG SKIASHARP_SHA256="cac1d71897ae8b8ba38ba6d2048ce9a8c45f2895ea8ffd3c65dd0c2017901f7b"
 
 # Install build dependencies
 RUN oma install -y curl git tar zlib icu openssl krb5 sqlite unzip
 
-# Download and install .NET SDK for loongarch64
+# Download, verify, and install .NET SDK for loongarch64
 RUN mkdir -p /opt/dotnet \
-    && curl -fSL -o /tmp/dotnet-sdk.tar.gz \
-       "https://github.com/loongson-community/dotnet-unofficial-build/releases/download/v9.0.201%2Bloong.20250313.build.20250313/dotnet-sdk-9.0.104-linux-loongarch64.tar.gz" \
+    && curl -fSL -o /tmp/dotnet-sdk.tar.gz "${DOTNET_SDK_URL}" \
+    && echo "${DOTNET_SDK_SHA256}  /tmp/dotnet-sdk.tar.gz" | sha256sum -c - \
     && tar xf /tmp/dotnet-sdk.tar.gz -C /opt/dotnet \
     && rm /tmp/dotnet-sdk.tar.gz
 
@@ -18,7 +28,7 @@ ENV DOTNET_ROOT=/opt/dotnet
 ENV PATH="${DOTNET_ROOT}:${PATH}"
 
 # Clone and build Jellyfin
-RUN git clone --depth 1 --branch v10.11.7 https://github.com/jellyfin/jellyfin.git /src/jellyfin
+RUN git clone --depth 1 --branch "v${JELLYFIN_VERSION}" https://github.com/jellyfin/jellyfin.git /src/jellyfin
 
 WORKDIR /src/jellyfin
 RUN dotnet publish Jellyfin.Server \
@@ -30,10 +40,12 @@ RUN dotnet publish Jellyfin.Server \
 RUN mkdir -p /opt/jellyfin/runtimes/linux-loongarch64/native \
     && ln -sf /usr/lib/libsqlite3.so /opt/jellyfin/runtimes/linux-loongarch64/native/libe_sqlite3.so
 
-# Fix native library: SkiaSharp 3.116.1 has no loongarch64 prebuilt, grab from 3.119.0
+# Fix native library: Jellyfin 10.11.7 ships SkiaSharp 3.116.1 which predates loongarch64 support.
+# Extract libSkiaSharp.so from 3.119.0 (added in https://github.com/mono/SkiaSharp/pull/3198).
 RUN cd /tmp \
     && curl -fSL -o skiasharp.nupkg \
-       "https://www.nuget.org/api/v2/package/SkiaSharp.NativeAssets.Linux/3.119.0" \
+       "https://www.nuget.org/api/v2/package/SkiaSharp.NativeAssets.Linux/${SKIASHARP_VERSION}" \
+    && echo "${SKIASHARP_SHA256}  skiasharp.nupkg" | sha256sum -c - \
     && unzip -o skiasharp.nupkg runtimes/linux-loongarch64/native/libSkiaSharp.so \
     && cp runtimes/linux-loongarch64/native/libSkiaSharp.so \
        /opt/jellyfin/runtimes/linux-loongarch64/native/ \
@@ -48,17 +60,32 @@ RUN mkdir -p /opt/dotnet-runtime \
     && cp -a /opt/dotnet/ThirdPartyNotices.txt /opt/dotnet-runtime/
 
 # ── Runtime stage ──
-FROM aosc/aosc-os
+FROM ${BASE_IMAGE}
 
-RUN oma install -y icu openssl krb5 zlib sqlite ffmpeg fontconfig freetype
+LABEL org.opencontainers.image.title="Jellyfin" \
+      org.opencontainers.image.version="10.11.7" \
+      org.opencontainers.image.description="Jellyfin Media Server for LoongArch64" \
+      org.opencontainers.image.url="https://jellyfin.org/" \
+      org.opencontainers.image.source="https://github.com/jellyfin/jellyfin"
+
+RUN oma install -y icu openssl krb5 zlib sqlite ffmpeg fontconfig freetype curl \
+    && oma clean
 
 # Only copy the runtime, not the full SDK (~360MB vs ~1.5GB)
-COPY --from=build /opt/dotnet-runtime /opt/dotnet
-COPY --from=build /opt/jellyfin /opt/jellyfin
+COPY --link --from=build /opt/dotnet-runtime /opt/dotnet
+COPY --link --from=build /opt/jellyfin /opt/jellyfin
 
-# Ensure the sqlite symlink target exists in the runtime image
+# Re-create sqlite symlink: the build-stage symlink points at /usr/lib/libsqlite3.so
+# which only exists in this runtime image, and COPY may not preserve symlinks correctly.
 RUN mkdir -p /opt/jellyfin/runtimes/linux-loongarch64/native \
     && ln -sf /usr/lib/libsqlite3.so /opt/jellyfin/runtimes/linux-loongarch64/native/libe_sqlite3.so
+
+# Run as non-root user
+RUN useradd -r -s /bin/false jellyfin \
+    && mkdir -p /config /cache \
+    && chown jellyfin:jellyfin /config /cache
+
+USER jellyfin
 
 ENV DOTNET_ROOT=/opt/dotnet
 ENV PATH="${DOTNET_ROOT}:${PATH}"
@@ -68,14 +95,17 @@ ENV JELLYFIN_CONFIG_DIR=/config
 ENV JELLYFIN_CACHE_DIR=/cache
 ENV JELLYFIN_LOG_DIR=/config/log
 
-EXPOSE 8096
+EXPOSE 8096 8920 1900/udp 7359/udp
 
 VOLUME ["/config", "/cache", "/media"]
 
-ENTRYPOINT ["/opt/dotnet/dotnet", "/opt/jellyfin/jellyfin.dll", \
-    "--datadir", "/config/data", \
-    "--configdir", "/config", \
-    "--cachedir", "/cache", \
-    "--logdir", "/config/log", \
-    "--ffmpeg", "/usr/bin/ffmpeg", \
-    "--nowebclient"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -sf http://localhost:8096/health || exit 1
+
+ENTRYPOINT ["/opt/dotnet/dotnet", "/opt/jellyfin/jellyfin.dll"]
+CMD ["--datadir", "/config/data", \
+     "--configdir", "/config", \
+     "--cachedir", "/cache", \
+     "--logdir", "/config/log", \
+     "--ffmpeg", "/usr/bin/ffmpeg", \
+     "--nowebclient"]
