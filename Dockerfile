@@ -5,7 +5,7 @@
 FROM aosc/aosc-os AS build
 
 # Install build dependencies
-RUN oma install -y curl git tar zlib icu openssl krb5 sqlite
+RUN oma install -y curl git tar zlib icu openssl krb5 sqlite unzip
 
 # Download and install .NET SDK for loongarch64
 RUN mkdir -p /opt/dotnet \
@@ -39,12 +39,21 @@ RUN cd /tmp \
        /opt/jellyfin/runtimes/linux-loongarch64/native/ \
     && rm -rf /tmp/skiasharp.nupkg /tmp/runtimes
 
+# Extract only the .NET runtime (not full SDK) for the runtime stage
+RUN mkdir -p /opt/dotnet-runtime \
+    && cp -a /opt/dotnet/dotnet /opt/dotnet-runtime/ \
+    && cp -a /opt/dotnet/host /opt/dotnet-runtime/ \
+    && cp -a /opt/dotnet/shared /opt/dotnet-runtime/ \
+    && cp -a /opt/dotnet/LICENSE.txt /opt/dotnet-runtime/ \
+    && cp -a /opt/dotnet/ThirdPartyNotices.txt /opt/dotnet-runtime/
+
 # ── Runtime stage ──
 FROM aosc/aosc-os
 
 RUN oma install -y icu openssl krb5 zlib sqlite ffmpeg fontconfig freetype
 
-COPY --from=build /opt/dotnet /opt/dotnet
+# Only copy the runtime, not the full SDK (~360MB vs ~1.5GB)
+COPY --from=build /opt/dotnet-runtime /opt/dotnet
 COPY --from=build /opt/jellyfin /opt/jellyfin
 
 # Ensure the sqlite symlink target exists in the runtime image
