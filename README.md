@@ -74,10 +74,10 @@ docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
 | Arg | Default | Description |
 |-----|---------|-------------|
 | `BASE_IMAGE` | `aosc/aosc-os:container-20260312` | Base image |
-| `JELLYFIN_VERSION` | `10.11.7` | Jellyfin server version (git tag) |
+| `JELLYFIN_VERSION` | `10.11.8` | Jellyfin server version (git tag) |
 | `JELLYFIN_FFMPEG_VERSION` | `v7.1.3-4` | jellyfin-ffmpeg version (git tag) |
 | `WEB_UI` | `classic` | Web UI: `classic` or `vue` |
-| `WEB_CLASSIC_IMAGE` | `jellyfin/jellyfin:10.11.7` | Source image for classic web UI files |
+| `WEB_CLASSIC_IMAGE` | `jellyfin/jellyfin:10.11.8` | Source image for classic web UI files |
 | `WEB_VUE_IMAGE` | `jellyfin/jellyfin-vue:unstable` | Source image for Vue web UI files |
 | `SKIASHARP_VERSION` | `3.119.0` | SkiaSharp native assets version |
 | `DOTNET_SDK_URL` | [loongson-community release](https://github.com/loongson-community/dotnet-unofficial-build/releases) | .NET SDK tarball URL |
@@ -88,5 +88,5 @@ docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64:vue .
 - **.NET SDK**: 9.0.104 from [loongson-community/dotnet-unofficial-build](https://github.com/loongson-community/dotnet-unofficial-build), verified with SHA-256 checksum
 - **FFmpeg**: Built from [jellyfin/jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) 7.1.3 with 94 Jellyfin patches (HDR tone-mapping, VAAPI/Vulkan/OpenCL filters, subtitle overlay, etc.)
 - **SQLite fix**: `SQLitePCLRaw` has no loongarch64 native library, `libsqlite3.so` from AOSC OS is symlinked as `libe_sqlite3.so`
-- **SkiaSharp fix**: Jellyfin 10.11.7 ships SkiaSharp 3.116.1 (no loongarch64); `libSkiaSharp.so` is extracted from 3.119.0 ([mono/SkiaSharp#3198](https://github.com/mono/SkiaSharp/pull/3198))
+- **SkiaSharp fix**: Jellyfin 10.11.8 ships SkiaSharp 3.116.1 (no loongarch64); `libSkiaSharp.so` is extracted from 3.119.0 ([mono/SkiaSharp#3198](https://github.com/mono/SkiaSharp/pull/3198))
 - **Non-root**: Runs as a dedicated `jellyfin` user inside the container
