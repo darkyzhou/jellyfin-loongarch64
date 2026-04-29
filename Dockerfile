@@ -160,6 +160,26 @@ LABEL org.opencontainers.image.title="Jellyfin" \
       org.opencontainers.image.url="https://jellyfin.org/" \
       org.opencontainers.image.source="https://github.com/darkyzhou/jellyfin-loongarch64"
 
+# Runtime dependencies. Notable additions vs Jellyfin official image
+# (https://github.com/jellyfin/jellyfin-packaging/blob/master/docker/Dockerfile):
+#
+#  - jemalloc: replaces glibc malloc via LD_PRELOAD (set below). Jellyfin
+#    official image ships libjemalloc2 for the same reason — better .NET
+#    memory fragmentation behavior on long-running servers.
+#
+#  - Fonts (dejavu/freefont/wqy-zenhei/ttf-baekmuk): without ANY font
+#    installed, SkiaSharp's SKTypeface.FromFamilyName / SKFontManager.
+#    MatchCharacter return null, Jellyfin's StripCollageBuilder feeds that
+#    null SKTypeface into SkiaSharp.HarfBuzz.SKShaper which throws
+#    ArgumentNullException("typeface") — breaking library collage thumbnail
+#    generation. Coverage:
+#      * dejavu-fonts: Latin + Cyrillic (Russian) + Greek + IPA
+#      * freefont:    Hebrew + Arabic + broad Unicode misc
+#      * wqy-zenhei:  CJK Han (Simplified/Traditional Chinese, JP kana)
+#      * ttf-baekmuk: Korean Hangul
+#    The official image installs noto-cjk + several Asian fonts but relies
+#    on the Debian base image to provide a Latin fallback; AOSC OS doesn't,
+#    so we pick our own minimal explicit set (~21 MiB download).
 RUN oma install -y \
       icu openssl krb5 zlib sqlite fontconfig freetype curl \
       gmp gnutls chromaprint libcl libdrm libxml2 libva \
@@ -167,6 +187,8 @@ RUN oma install -y \
       libbluray lame opus libtheora libvorbis openmpt \
       dav1d svt-av1 libwebp libvpx x264 x265 zvbi zimg \
       libfdk-aac libplacebo vulkan shaderc \
+      jemalloc \
+      dejavu-fonts freefont wqy-zenhei ttf-baekmuk \
     && oma clean
 
 WORKDIR /opt/jellyfin
@@ -211,6 +233,31 @@ ENV JELLYFIN_CACHE_DIR=/cache
 ENV JELLYFIN_LOG_DIR=/config/log
 ENV JELLYFIN_WEB_DIR=/opt/jellyfin-web
 ENV JELLYFIN_FFMPEG=/opt/jellyfin-ffmpeg/bin/ffmpeg
+
+# UTF-8 locale: matches Jellyfin official Dockerfile. AOSC's glibc ships
+# all locales precompiled (`locale -a` already lists en_US.utf8), so unlike
+# the Debian-based official image we don't need to run `locale-gen`.
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    LANGUAGE=en_US:en
+
+# fontconfig writes its cache to $XDG_CACHE_HOME (or ~/.cache as fallback).
+# The non-root jellyfin user has no $HOME, so without this fontconfig fails
+# to cache and prints noisy warnings on every startup. Pinning it to /cache
+# (which is a volume) also persists the cache across restarts.
+# Source: jellyfin-packaging/docker/Dockerfile sets the same:
+# https://github.com/jellyfin/jellyfin-packaging/blob/master/docker/Dockerfile
+ENV XDG_CACHE_HOME=/cache
+
+# Magick.NET memory tuning: reduce per-thread arena fragmentation in glibc
+# malloc. Jellyfin official image and LinuxServer image both set this.
+# Source: https://github.com/dlemstra/Magick.NET/issues/707#issuecomment-785351620
+ENV MALLOC_TRIM_THRESHOLD_=131072
+
+# jemalloc as a drop-in malloc replacement (single arch path on AOSC, no
+# multi-arch dispatch needed). Same approach as Jellyfin official image,
+# which symlinks libjemalloc.so.2 to a stable path before LD_PRELOAD.
+ENV LD_PRELOAD=/usr/lib/libjemalloc.so.2
 
 EXPOSE 8096 8920 1900/udp 7359/udp
 
