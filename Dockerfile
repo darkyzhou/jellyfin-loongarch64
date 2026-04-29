@@ -113,14 +113,10 @@ RUN git clone --depth 1 --branch "v${JELLYFIN_VERSION}" https://github.com/jelly
 
 WORKDIR /src/jellyfin
 
-# Upgrade SkiaSharp from 3.116.1 to 3.119.0 for loongarch64 native library support.
-# SkiaSharp 3.116.1 has no loongarch64 build; 3.119.0 added it (mono/SkiaSharp#3198).
-# Must upgrade the managed NuGet packages to match the native library version, otherwise:
-# "The version of the native libSkiaSharp library (119.0) is incompatible..."
 RUN sed -i \
-      -e 's|Include="SkiaSharp" Version="3.116.1"|Include="SkiaSharp" Version="3.119.0"|' \
-      -e 's|Include="SkiaSharp.HarfBuzz" Version="3.116.1"|Include="SkiaSharp.HarfBuzz" Version="3.119.0"|' \
-      -e 's|Include="SkiaSharp.NativeAssets.Linux" Version="3.116.1"|Include="SkiaSharp.NativeAssets.Linux" Version="3.119.0"|' \
+      -e "s|Include=\"SkiaSharp\" Version=\"3.116.1\"|Include=\"SkiaSharp\" Version=\"${SKIASHARP_VERSION}\"|" \
+      -e "s|Include=\"SkiaSharp.HarfBuzz\" Version=\"3.116.1\"|Include=\"SkiaSharp.HarfBuzz\" Version=\"${SKIASHARP_VERSION}\"|" \
+      -e "s|Include=\"SkiaSharp.NativeAssets.Linux\" Version=\"3.116.1\"|Include=\"SkiaSharp.NativeAssets.Linux\" Version=\"${SKIASHARP_VERSION}\"|" \
       Directory.Packages.props
 
 RUN dotnet publish Jellyfin.Server \
