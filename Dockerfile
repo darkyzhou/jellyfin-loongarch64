@@ -1,4 +1,3 @@
-# Jellyfin 10.11.8 for LoongArch64
 # Build: docker build -t darkyzhou/jellyfin-loongarch64 .
 # Build with Vue frontend: docker build --build-arg WEB_UI=vue -t darkyzhou/jellyfin-loongarch64 .
 # Run:   docker run -d -p 8096:8096 -v jellyfin-config:/config -v jellyfin-cache:/cache -v /path/to/media:/media:ro darkyzhou/jellyfin-loongarch64
@@ -18,8 +17,8 @@ ARG JELLYFIN_VERSION=10.11.8
 ARG JELLYFIN_FFMPEG_VERSION=v7.1.3-4
 ARG DOTNET_SDK_URL="https://github.com/loongson-community/dotnet-unofficial-build/releases/download/v9.0.201%2Bloong.20250313.build.20250313/dotnet-sdk-9.0.104-linux-loongarch64.tar.gz"
 ARG DOTNET_SDK_SHA256="3c29cf43ecb99731450ccbd020a5734545cf707e603c4bcef8586263dd6d0238"
-ARG SKIASHARP_VERSION=3.119.0
-ARG SKIASHARP_SHA256="cac1d71897ae8b8ba38ba6d2048ce9a8c45f2895ea8ffd3c65dd0c2017901f7b"
+ARG SKIASHARP_VERSION=3.119.4-preview.1.1
+ARG SKIASHARP_SHA256="8dc7f41615203b3c6927810d9f5ab9b8f7bc753fa45e5d3fc94589b3e84360d0"
 
 # Install build dependencies for Jellyfin server and jellyfin-ffmpeg.
 RUN oma install -y \
@@ -165,8 +164,6 @@ LABEL org.opencontainers.image.title="Jellyfin" \
       org.opencontainers.image.url="https://jellyfin.org/" \
       org.opencontainers.image.source="https://github.com/darkyzhou/jellyfin-loongarch64"
 
-# Runtime dependencies: .NET runtime libs + all shared libs that jellyfin-ffmpeg links against.
-# AOSC's ffmpeg package is NOT installed — we use our own jellyfin-ffmpeg build.
 RUN oma install -y \
       icu openssl krb5 zlib sqlite fontconfig freetype curl \
       gmp gnutls chromaprint libcl libdrm libxml2 libva \
